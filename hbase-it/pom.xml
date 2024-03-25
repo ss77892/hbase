@@ -37,6 +37,8 @@
     <integrationtest.include>**/IntegrationTest*.java</integrationtest.include>
     <!-- To Run Tests with a particular Xmx Value use -Dfailsafe.Xmx=XXXg -->
     <failsafe.Xmx>4g</failsafe.Xmx>
+    <failsafe.jdk8.flags>-XX:+CMSClassUnloadingEnabled</failsafe.jdk8.flags>
+    <failsafe.profile.overrides>${failsafe.jdk8.flags}</failsafe.profile.overrides>
     <!-- To run a single integration test, use -Dit.test=IntegrationTestXXX -->
   </properties>
 
@@ -112,19 +114,6 @@
     </dependency>
     <dependency>
       <groupId>org.apache.hbase</groupId>
-      <artifactId>hbase-testing-util</artifactId>
-      <exclusions>
-        <!--This dependency pulls in hadoop-minicluster
-             which pulls in the below. It messes up
-             this build at assembly time. See HBASE-22029-->
-        <exclusion>
-          <groupId>com.sun.jersey</groupId>
-          <artifactId>jersey-core</artifactId>
-        </exclusion>
-      </exclusions>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.hbase</groupId>
       <artifactId>hbase-endpoint</artifactId>
     </dependency>
     <dependency>
@@ -150,13 +139,6 @@
     <dependency>
       <groupId>io.opentelemetry</groupId>
       <artifactId>opentelemetry-api</artifactId>
-    </dependency>
-    <!-- Hadoop needs Netty 3.x at test scope for the minicluster -->
-    <dependency>
-      <groupId>io.netty</groupId>
-      <artifactId>netty</artifactId>
-      <version>${netty.hadoop.version}</version>
-      <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.slf4j</groupId>
@@ -231,11 +213,6 @@
     </testResources>
     <pluginManagement>
       <plugins>
-        <!-- Make a jar and put the sources in the jar -->
-        <plugin>
-          <groupId>org.apache.maven.plugins</groupId>
-          <artifactId>maven-source-plugin</artifactId>
-        </plugin>
         <plugin>
           <!--Make it so assembly:single does nothing in here-->
           <artifactId>maven-assembly-plugin</artifactId>
@@ -303,7 +280,7 @@
                  I believe it is a failsafe bug, we may consider using surefire -->
           <forkedProcessTimeoutInSeconds>1800</forkedProcessTimeoutInSeconds>
           <argLine>-enableassertions -Xmx${failsafe.Xmx}
-                -Djava.security.egd=file:/dev/./urandom -XX:+CMSClassUnloadingEnabled
+	         -Djava.security.egd=file:/dev/./urandom ${failsafe.profile.overrides}
                 -verbose:gc -XX:+PrintCommandLineFlags  -XX:+PrintFlagsFinal @{jacocoArgLine}</argLine>
         </configuration>
       </plugin>
@@ -356,6 +333,10 @@
       <activation>
         <jdk>[1.11,)</jdk>
       </activation>
+      <properties>
+        <failsafe.profile.overrides>${hbase-surefire.jdk11.flags}</failsafe.profile.overrides>
+      </properties>
+
       <dependencies>
         <dependency>
           <groupId>com.sun.xml.ws</groupId>
@@ -404,6 +385,13 @@
         <dependency>
           <groupId>org.apache.hadoop</groupId>
           <artifactId>hadoop-minikdc</artifactId>
+        </dependency>
+        <!-- ITs using MiniMRYarnCluster fail with NCDFE, so adding this here. We are not having
+        same exclusions as in hadoop-3 profile, as for hadoop-3 it runs fine even with exclusions.
+        See HBASE-28311 for details. -->
+        <dependency>
+          <groupId>org.apache.hbase</groupId>
+          <artifactId>hbase-testing-util</artifactId>
         </dependency>
       </dependencies>
       <build>
@@ -468,6 +456,19 @@
         <dependency>
           <groupId>org.apache.hadoop</groupId>
           <artifactId>hadoop-minikdc</artifactId>
+        </dependency>
+        <dependency>
+          <groupId>org.apache.hbase</groupId>
+          <artifactId>hbase-testing-util</artifactId>
+          <exclusions>
+            <!--This dependency pulls in hadoop-minicluster
+                 which pulls in the below. It messes up
+                 this build at assembly time. See HBASE-22029-->
+            <exclusion>
+              <groupId>com.sun.jersey</groupId>
+              <artifactId>jersey-core</artifactId>
+            </exclusion>
+          </exclusions>
         </dependency>
       </dependencies>
       <build>

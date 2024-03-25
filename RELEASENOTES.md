@@ -16,6 +16,90 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 -->
+# HBASE  2.5.8 Release Notes
+
+These release notes cover new developer and user-facing incompatibilities, important issues, features, and major improvements.
+
+
+---
+
+* [HBASE-28204](https://issues.apache.org/jira/browse/HBASE-28204) | *Major* | **Region Canary can take lot more time If any region (except the first region) starts with delete markers**
+
+Canary is using Scan for first region of the table and Get for rest of the region. RAW Scan was only enabled for first region of any table. If a region has high number of deleted rows for the first row of the key-space, then It can take really long time for Get to finish execution.
+
+With this change, Region canary will use scan to validate that every region is accessible and also enables RAW Scan if it's enabled by the user.
+
+
+---
+
+* [HBASE-28319](https://issues.apache.org/jira/browse/HBASE-28319) | *Major* | **Expose DelegatingRpcScheduler as IA.LimitedPrivate**
+
+hbase-server now exposes a DelegatingRpcScheduler. Users who have been using hbase.region.server.rpc.scheduler.factory.class to override the default behavior of the built-in schedulers may find it beneficial to have their implementation extend this new class. This will insulate you from breaking interface changes down the line.
+
+
+---
+
+* [HBASE-28306](https://issues.apache.org/jira/browse/HBASE-28306) | *Major* | **Add property to customize Version information**
+
+Added a new build property -Dversioninfo.version which can be used to influence the generated Version.java class in custom build scenarios. The version specified will show up in the HMaster UI and also have implications on various version-related checks. This is an advanced usage property and it's recommended not to stray too far from the default format of major.minor.patch-suffix.
+
+
+
+# HBASE  2.5.7 Release Notes
+
+These release notes cover new developer and user-facing incompatibilities, important issues, features, and major improvements.
+
+
+---
+
+* [HBASE-25549](https://issues.apache.org/jira/browse/HBASE-25549) | *Major* | **Provide a switch that allows avoiding reopening all regions when modifying a table to prevent RIT storms.**
+
+New APIs are added to Admin, AsyncAdmin, and hbase shell to allow modifying a table without reopening all regions. Care should be used in using this API, as regions will be in an inconsistent state until they are all reopened. Whether this matters depends on the change, and some changes are disallowed (such as enabling region replication or adding/removing a column family).
+
+
+---
+
+* [HBASE-28168](https://issues.apache.org/jira/browse/HBASE-28168) | *Minor* | **Add option in RegionMover.java to isolate one or more regions on the RegionSever**
+
+This adds a new "isolate\_regions" operation to RegionMover, which allows operators to pass a list of region encoded ids to be "isolated" in the passed RegionServer.
+Regions currently deployed in the RegionServer that are not in the passed list of regions would be moved to other RegionServers. Regions in the passed list that are currently on other RegionServers would be moved to the passed RegionServer.
+
+Please refer to the command help for further information.
+
+
+
+# HBASE  2.5.6 Release Notes
+
+These release notes cover new developer and user-facing incompatibilities, important issues, features, and major improvements.
+
+
+---
+
+* [HBASE-28068](https://issues.apache.org/jira/browse/HBASE-28068) | *Minor* | **Add hbase.normalizer.merge.merge\_request\_max\_number\_of\_regions property to limit max number of regions in a merge request for merge normalization**
+
+Added a new property "hbase.normalizer.merge.merge\_request\_max\_number\_of\_regions" to limit the max number of region to be processed for merge request in a single merge normalisation. Defaults to 100
+
+
+---
+
+* [HBASE-27956](https://issues.apache.org/jira/browse/HBASE-27956) | *Major* | **Support wall clock profiling in ProfilerServlet**
+
+You can now do wall clock profiling with async-profiler by specifying ?event=wall query param on the profiler servlet (/prof)
+
+
+---
+
+* [HBASE-27888](https://issues.apache.org/jira/browse/HBASE-27888) | *Minor* | **Record readBlock message in log when it takes too long time**
+
+Add a configuration parameter,which control to record read block slow in logs.
+\<property\>
+  \<name\>hbase.fs.reader.warn.time.ms\</name\>
+  \<value\>-1\</value\>
+\</property\>
+If reading block cost time in milliseconds more than the threshold, a warning will be logged,the default value is -1, it means skipping record the read block slow warning log.
+
+
+
 # HBASE  2.5.5 Release Notes
 
 These release notes cover new developer and user-facing incompatibilities, important issues, features, and major improvements.

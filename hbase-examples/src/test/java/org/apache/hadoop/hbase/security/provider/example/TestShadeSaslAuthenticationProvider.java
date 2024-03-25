@@ -17,6 +17,7 @@
  */
 package org.apache.hadoop.hbase.security.provider.example;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
@@ -28,7 +29,9 @@ import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.security.PrivilegedExceptionAction;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import org.apache.hadoop.conf.Configuration;
@@ -37,7 +40,6 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellUtil;
-import org.apache.hadoop.hbase.DoNotRetryIOException;
 import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HConstants;
@@ -50,6 +52,7 @@ import org.apache.hadoop.hbase.client.ConnectionFactory;
 import org.apache.hadoop.hbase.client.Get;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.Result;
+import org.apache.hadoop.hbase.client.RetriesExhaustedException;
 import org.apache.hadoop.hbase.client.Table;
 import org.apache.hadoop.hbase.client.TableDescriptorBuilder;
 import org.apache.hadoop.hbase.coprocessor.CoprocessorHost;
@@ -61,6 +64,7 @@ import org.apache.hadoop.hbase.testclassification.MediumTests;
 import org.apache.hadoop.hbase.testclassification.SecurityTests;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.CommonFSUtils;
+import org.apache.hadoop.hbase.util.Pair;
 import org.apache.hadoop.minikdc.MiniKdc;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.junit.AfterClass;
@@ -71,9 +75,13 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.rules.TestName;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Category({ MediumTests.class, SecurityTests.class })
 public class TestShadeSaslAuthenticationProvider {
+  private static final Logger LOG =
+    LoggerFactory.getLogger(TestShadeSaslAuthenticationProvider.class);
 
   @ClassRule
   public static final HBaseClassTestRule CLASS_RULE =
@@ -196,48 +204,87 @@ public class TestShadeSaslAuthenticationProvider {
   @Test
   public void testPositiveAuthentication() throws Exception {
     final Configuration clientConf = new Configuration(CONF);
-    try (Connection conn = ConnectionFactory.createConnection(clientConf)) {
+    try (Connection conn1 = ConnectionFactory.createConnection(clientConf)) {
       UserGroupInformation user1 =
         UserGroupInformation.createUserForTesting("user1", new String[0]);
-      user1.addToken(ShadeClientTokenUtil.obtainToken(conn, "user1", USER1_PASSWORD));
+      user1.addToken(ShadeClientTokenUtil.obtainToken(conn1, "user1", USER1_PASSWORD));
       user1.doAs(new PrivilegedExceptionAction<Void>() {
         @Override
         public Void run() throws Exception {
-          try (Table t = conn.getTable(tableName)) {
-            Result r = t.get(new Get(Bytes.toBytes("r1")));
-            assertNotNull(r);
-            assertFalse("Should have read a non-empty Result", r.isEmpty());
-            final Cell cell = r.getColumnLatestCell(Bytes.toBytes("f1"), Bytes.toBytes("q1"));
-            assertTrue("Unexpected value", CellUtil.matchingValue(cell, Bytes.toBytes("1")));
+          try (Connection conn = ConnectionFactory.createConnection(clientConf)) {
+            try (Table t = conn.getTable(tableName)) {
+              Result r = t.get(new Get(Bytes.toBytes("r1")));
+              assertNotNull(r);
+              assertFalse("Should have read a non-empty Result", r.isEmpty());
+              final Cell cell = r.getColumnLatestCell(Bytes.toBytes("f1"), Bytes.toBytes("q1"));
+              assertTrue("Unexpected value", CellUtil.matchingValue(cell, Bytes.toBytes("1")));
 
-            return null;
+              return null;
+            }
           }
         }
       });
     }
   }
 
-  @Test(expected = DoNotRetryIOException.class)
+  @Test
   public void testNegativeAuthentication() throws Exception {
-    // Validate that we can read that record back out as the user with our custom auth'n
-    final Configuration clientConf = new Configuration(CONF);
-    clientConf.setInt(HConstants.HBASE_CLIENT_RETRIES_NUMBER, 3);
-    try (Connection conn = ConnectionFactory.createConnection(clientConf)) {
-      UserGroupInformation user1 =
-        UserGroupInformation.createUserForTesting("user1", new String[0]);
-      user1.addToken(
-        ShadeClientTokenUtil.obtainToken(conn, "user1", "not a real password".toCharArray()));
-      user1.doAs(new PrivilegedExceptionAction<Void>() {
-        @Override
-        public Void run() throws Exception {
-          try (Connection conn = ConnectionFactory.createConnection(clientConf);
-            Table t = conn.getTable(tableName)) {
-            t.get(new Get(Bytes.toBytes("r1")));
-            fail("Should not successfully authenticate with HBase");
+    List<Pair<String, Class<? extends Exception>>> params = new ArrayList<>();
+    // ZK based connection will fail on the master RPC
+    params.add(new Pair<String, Class<? extends Exception>>(
+      // ZKConnectionRegistry is package-private
+      HConstants.ZK_CONNECTION_REGISTRY_CLASS, RetriesExhaustedException.class));
+
+    params.forEach((pair) -> {
+      LOG.info("Running negative authentication test for client registry {}, expecting {}",
+        pair.getFirst(), pair.getSecond().getName());
+      // Validate that we can read that record back out as the user with our custom auth'n
+      final Configuration clientConf = new Configuration(CONF);
+      clientConf.setInt(HConstants.HBASE_CLIENT_RETRIES_NUMBER, 3);
+      clientConf.set(HConstants.CLIENT_CONNECTION_REGISTRY_IMPL_CONF_KEY, pair.getFirst());
+      try (Connection conn = ConnectionFactory.createConnection(clientConf)) {
+        UserGroupInformation user1 =
+          UserGroupInformation.createUserForTesting("user1", new String[0]);
+        user1.addToken(
+          ShadeClientTokenUtil.obtainToken(conn, "user1", "not a real password".toCharArray()));
+
+        LOG.info("Executing request to HBase Master which should fail");
+        user1.doAs(new PrivilegedExceptionAction<Void>() {
+          @Override
+          public Void run() throws Exception {
+            try (Connection conn = ConnectionFactory.createConnection(clientConf);) {
+              conn.getAdmin().listTableDescriptors();
+              fail("Should not successfully authenticate with HBase");
+            } catch (Exception e) {
+              LOG.info("Caught exception in negative Master connectivity test", e);
+              assertEquals("Found unexpected exception", pair.getSecond(), e.getClass());
+            }
             return null;
           }
-        }
-      });
-    }
+        });
+
+        LOG.info("Executing request to HBase RegionServer which should fail");
+        user1.doAs(new PrivilegedExceptionAction<Void>() {
+          @Override
+          public Void run() throws Exception {
+            try (Connection conn = ConnectionFactory.createConnection(clientConf);
+              Table t = conn.getTable(tableName)) {
+              t.get(new Get(Bytes.toBytes("r1")));
+              fail("Should not successfully authenticate with HBase");
+            } catch (Exception e) {
+              LOG.info("Caught exception in negative RegionServer connectivity test", e);
+              assertEquals("Found unexpected exception", pair.getSecond(), e.getClass());
+            }
+            return null;
+          }
+        });
+      } catch (InterruptedException e) {
+        LOG.error("Caught interrupted exception", e);
+        Thread.currentThread().interrupt();
+        return;
+      } catch (IOException e) {
+        throw new RuntimeException(e);
+      }
+    });
   }
 }
