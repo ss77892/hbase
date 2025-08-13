@@ -49,11 +49,13 @@ import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.HRegionLocation;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.AsyncRpcRetryingCallerFactory.SingleRequestCallerBuilder;
-import org.apache.hadoop.hbase.client.ConnectionUtils.Converter;
 import org.apache.hadoop.hbase.client.trace.TableOperationSpanBuilder;
+import org.apache.hadoop.hbase.client.ConnectionUtils.Converter;
 import org.apache.hadoop.hbase.filter.Filter;
 import org.apache.hadoop.hbase.io.TimeRange;
 import org.apache.hadoop.hbase.ipc.HBaseRpcController;
+import org.apache.hadoop.hbase.shaded.grpc.GrpcRequestConverter;
+import org.apache.hadoop.hbase.shaded.grpc.GrpcUtil;
 import org.apache.hadoop.hbase.trace.HBaseSemanticAttributes;
 import org.apache.hadoop.hbase.trace.TraceUtil;
 import org.apache.hadoop.hbase.util.Bytes;
@@ -176,8 +178,16 @@ class RawAsyncTableImpl implements AsyncTable<AdvancedScanResultConsumer> {
     HRegionLocation loc, ClientService.Interface stub, REQ req,
     Converter<MutateRequest, byte[], REQ> reqConvert,
     Converter<RESP, HBaseRpcController, MutateResponse> respConverter) {
-    return ConnectionUtils.call(controller, loc, stub, req, reqConvert,
-      (s, c, r, done) -> s.mutate(c, r, done), respConverter);
+    // Convert GrpcAware converters to ConnectionUtils converters
+    ConnectionUtils.Converter<MutateRequest, byte[], REQ> connectionReqConverter = 
+      (regionName, request) -> reqConvert.convert(regionName, request);
+    ConnectionUtils.RpcCall<MutateResponse, MutateRequest> connectionRpcCall = 
+      (service, ctrl, request, done) -> service.mutate(ctrl, request, done);
+    ConnectionUtils.Converter<RESP, HBaseRpcController, MutateResponse> connectionRespConverter = 
+      (ctrl, response) -> respConverter.convert(ctrl, response);
+    
+    return ConnectionUtils.call(controller, loc, stub, req, 
+      connectionReqConverter, connectionRpcCall, connectionRespConverter);
   }
 
   private static <REQ> CompletableFuture<Void> voidMutate(HBaseRpcController controller,
@@ -187,7 +197,6 @@ class RawAsyncTableImpl implements AsyncTable<AdvancedScanResultConsumer> {
       return null;
     });
   }
-
   private static Result toResult(HBaseRpcController controller, MutateResponse resp)
     throws IOException {
     if (!resp.hasResult()) {
@@ -224,12 +233,44 @@ class RawAsyncTableImpl implements AsyncTable<AdvancedScanResultConsumer> {
     return newCaller(row.getRow(), row.getPriority(), rpcTimeoutNs);
   }
 
+  private CompletableFuture<Result> getViaRpc(HBaseRpcController controller, HRegionLocation loc,
+    ClientService.Interface stub, Get get) {
+    return ConnectionUtils.<Get, GetRequest, GetResponse, Result> call(controller, loc, stub, get,
+      RequestConverter::buildGetRequest, (s, c, req, done) -> s.get(c, req, done),
+      (c, resp) -> ProtobufUtil.toResult(resp.getResult(), c.cellScanner()));
+  }
+
+  private CompletableFuture<Result> getViaGrpc(HBaseRpcController controller, HRegionLocation loc,
+    Get get) {
+    CompletableFuture<Result> future = new CompletableFuture<>();
+    try {
+      byte[] regionName = loc.getRegion().getRegionName();
+      org.apache.hadoop.hbase.shaded.grpc.generated.GetRequest
+        req = GrpcRequestConverter.buildGetRequest(regionName, get);
+      conn.getGrpcClientService().get(loc.getServerName(), req).whenComplete((resp, err) -> {
+        if (err != null) {
+          future.completeExceptionally(err);
+        } else {
+          try {
+            Result result = GrpcUtil.toResult(resp.getResult(), controller.cellScanner());
+            future.complete(result);
+          } catch (IOException e) {
+            future.completeExceptionally(e);
+          }
+        }
+      });
+    } catch (IOException e) {
+      future.completeExceptionally(e);
+    }
+    return future;
+  }
+
   private CompletableFuture<Result> get(Get get, int replicaId) {
     return this.<Result, Get> newCaller(get, readRpcTimeoutNs)
-      .action((controller, loc, stub) -> ConnectionUtils.<Get, GetRequest, GetResponse,
-        Result> call(controller, loc, stub, get, RequestConverter::buildGetRequest,
-          (s, c, req, done) -> s.get(c, req, done),
-          (c, resp) -> ProtobufUtil.toResult(resp.getResult(), c.cellScanner())))
+      .action((controller, loc, stub) ->
+        conn.getGrpcClientService().isEnabled()
+          ? getViaGrpc(controller, loc, get)
+          : getViaRpc(controller, loc, stub, get))
       .replicaId(replicaId).call();
   }
 

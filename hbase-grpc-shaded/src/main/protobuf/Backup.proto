@@ -1,0 +1,122 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless optional by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+syntax = "proto3";
+// This file contains Backup manifest
+package hbase.grpc;
+
+option java_package = "org.apache.hadoop.hbase.shaded.grpc.generated";
+option java_outer_classname = "BackupProtos";
+option java_generic_services = true;
+option java_generate_equals_and_hash = true;
+option optimize_for = SPEED;
+
+import "HBase.proto";
+
+/**
+ * Backup type enum: FULL or INCREMENTAL
+ */
+
+enum BackupType {
+  FULL = 0;
+  INCREMENTAL = 1;
+}
+/**
+ * ServerTimestamp keeps last WAL roll time per Region Server
+ */
+message ServerTimestamp {
+ServerName server_name = 1;
+uint64 timestamp = 2;
+}
+
+/**
+ *  TableServerTimestamp keeps last WAL roll time per Region Server & Table
+ *  Each table have different last WAL roll time stamps across cluster, on every RS
+ */
+message TableServerTimestamp {
+TableName table_name = 1;
+  repeated ServerTimestamp server_timestamp = 2;
+}
+
+/**
+ * Structure keeps relevant info for backup restore session
+ * backup_root_dir was marked as deprecated in HBase 2.6.2, will be removed in 4.0.0.
+ */
+message BackupImage {
+string backup_id = 1;
+BackupType backup_type = 2;
+string backup_root_dir = 3 [deprecated = true];
+  repeated TableName table_list = 4;
+uint64 start_ts = 5;
+uint64 complete_ts = 6;
+  repeated BackupImage ancestors = 7;
+  repeated TableServerTimestamp tst_map = 8;
+
+}
+
+/**
+ * Internal structure used during backup
+ */
+message BackupTableInfo {
+TableName table_name = 1;
+string snapshot_name = 2;
+}
+
+/**
+ * Backup session information
+ */
+message BackupInfo {
+string backup_id = 1;
+BackupType backup_type = 2;
+string backup_root_dir = 3;
+BackupState backup_state = 4;
+BackupPhase backup_phase = 5;
+string failed_message = 6;
+  repeated BackupTableInfo backup_table_info = 7;
+uint64  start_ts = 8;
+uint64  complete_ts = 9;
+uint32 progress = 10;
+uint32 workers_number = 11;
+uint64 bandwidth = 12;
+  map<string, RSTimestampMap> table_set_timestamp = 13;
+
+  message RSTimestampMap {
+    map<string, uint64> rs_timestamp = 1;
+  }
+  /**
+   * Backup session states
+   */
+  enum BackupState {
+    RUNNING = 0;
+    COMPLETE = 1;
+    FAILED = 2;
+    CANCELLED = 3;
+  }
+
+  /**
+   * Phases of a backup session in RUNNING state
+   *
+   */
+  enum BackupPhase {
+    REQUEST = 0;
+    SNAPSHOT = 1;
+    PREPARE_INCREMENTAL = 2;
+    SNAPSHOTCOPY = 3;
+    INCREMENTAL_COPY = 4;
+    STORE_MANIFEST = 5;
+  }
+}

@@ -36,6 +36,11 @@
       <groupId>org.apache.hbase.thirdparty</groupId>
       <artifactId>hbase-shaded-protobuf</artifactId>
     </dependency>
+    <!-- gRPC shaded dependencies for client support -->
+    <dependency>
+      <groupId>org.apache.hbase</groupId>
+      <artifactId>hbase-grpc-shaded</artifactId>
+    </dependency>
     <!-- Intra-project dependencies -->
     <dependency>
       <groupId>org.apache.hbase</groupId>

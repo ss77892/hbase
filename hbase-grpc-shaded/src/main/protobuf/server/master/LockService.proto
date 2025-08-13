@@ -1,0 +1,98 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+syntax = "proto3";
+
+package hbase.grpc;
+
+option java_package = "org.apache.hadoop.hbase.shaded.grpc.generated";
+option java_outer_classname = "LockServiceProtos";
+option java_generic_services = true;
+option java_generate_equals_and_hash = true;
+option optimize_for = SPEED;
+
+import "HBase.proto";
+import "server/Procedure.proto";
+
+enum LockType {
+  EXCLUSIVE = 0;
+  SHARED = 1;
+}
+
+message LockRequest {
+LockType lock_type = 1;
+string namespace = 2;
+TableName table_name = 3;
+  repeated RegionInfo region_info = 4;
+string description = 5;
+uint64 nonce_group = 6;
+uint64 nonce = 7;
+}
+
+message LockResponse {
+uint64 proc_id = 1;
+}
+
+message LockHeartbeatRequest {
+uint64 proc_id = 1;
+bool keep_alive = 2;
+}
+
+message LockHeartbeatResponse {
+  enum LockStatus {
+    UNLOCKED = 0;
+    LOCKED = 1;
+  }
+
+LockStatus lock_status = 1;
+  // Timeout of lock (if locked).
+uint32 timeout_ms = 2;
+}
+
+message LockProcedureData {
+LockType lock_type = 1;
+string namespace = 2;
+TableName table_name = 3;
+  repeated RegionInfo region_info = 4;
+string description = 5;
+bool is_master_lock = 6;
+}
+
+enum LockedResourceType {
+  SERVER = 0;
+  NAMESPACE = 1;
+  TABLE = 2;
+  REGION = 3;
+  PEER = 4;
+}
+
+message LockedResource {
+LockedResourceType resource_type = 1;
+string resource_name = 2;
+LockType lock_type = 3;
+Procedure exclusive_lock_owner_procedure = 4;
+int32 shared_lock_count = 5;
+  repeated Procedure waitingProcedures = 6;
+}
+
+service LockService {
+  /** Acquire lock on namespace/table/region */
+  rpc RequestLock(LockRequest) returns(LockResponse);
+
+  /** Keep alive (or not) a previously acquired lock */
+  rpc LockHeartbeat(LockHeartbeatRequest) returns(LockHeartbeatResponse);
+}

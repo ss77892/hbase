@@ -1,0 +1,198 @@
+ /**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+syntax = "proto3";
+
+package hbase.grpc;
+
+option java_package = "org.apache.hadoop.hbase.shaded.grpc.generated";
+option java_outer_classname = "ReplicationProtos";
+option java_generic_services = true;
+option java_generate_equals_and_hash = true;
+option optimize_for = SPEED;
+
+import "HBase.proto";
+import "server/Procedure.proto";
+
+message TableCF {
+TableName table_name = 1;
+  repeated bytes families = 2;
+}
+
+/**
+ * Used by replication. Holds a replication peer key.
+ */
+message ReplicationPeer {
+  // clusterkey is the concatenation of the slave cluster's
+  // hbase.zookeeper.quorum:hbase.zookeeper.property.clientPort:zookeeper.znode.parent
+string clusterkey = 1;
+string replicationEndpointImpl = 2;
+  repeated BytesBytesPair data = 3;
+  repeated NameStringPair configuration = 4;
+  repeated TableCF table_cfs = 5;
+  repeated bytes namespaces = 6;
+int64 bandwidth = 7;
+bool replicate_all = 8;
+  repeated TableCF exclude_table_cfs = 9;
+  repeated bytes exclude_namespaces = 10;
+bool serial = 11;
+string remoteWALDir = 12;
+}
+
+/**
+ * Used by replication. Holds whether enabled or disabled
+ */
+message ReplicationState {
+  enum State {
+    ENABLED = 0;
+    DISABLED = 1;
+  }
+State state = 1;
+}
+
+/**
+ * Indicate the state of the current cluster in a synchronous replication peer.
+ */
+message SyncReplicationState {
+  enum State {
+    NONE = 0;
+    ACTIVE = 1;
+    DOWNGRADE_ACTIVE = 2;
+    STANDBY = 3;
+  }
+State state = 1;
+}
+
+/**
+ * Used by replication. Description of the replication peer.
+ */
+message ReplicationPeerDescription {
+string id = 1;
+ReplicationState state = 2;
+ReplicationPeer config = 3;
+SyncReplicationState syncReplicationState = 4;
+}
+
+/**
+ * Used by replication. Holds the current position in an WAL file.
+ */
+message ReplicationHLogPosition {
+int64 position = 1;
+}
+
+message AddReplicationPeerRequest {
+string peer_id = 1;
+ReplicationPeer peer_config = 2;
+ReplicationState peer_state = 3;
+}
+
+message AddReplicationPeerResponse {
+uint64 proc_id = 1;
+}
+
+message RemoveReplicationPeerRequest {
+string peer_id = 1;
+}
+
+message RemoveReplicationPeerResponse {
+uint64 proc_id = 1;
+}
+
+message EnableReplicationPeerRequest {
+string peer_id = 1;
+}
+
+message EnableReplicationPeerResponse {
+uint64 proc_id = 1;
+}
+
+message DisableReplicationPeerRequest {
+string peer_id = 1;
+}
+
+message DisableReplicationPeerResponse {
+uint64 proc_id = 1;
+}
+
+message GetReplicationPeerConfigRequest {
+string peer_id = 1;
+}
+
+message GetReplicationPeerConfigResponse {
+string peer_id = 1;
+ReplicationPeer peer_config = 2;
+}
+
+message UpdateReplicationPeerConfigRequest {
+string peer_id = 1;
+ReplicationPeer peer_config = 2;
+}
+
+message UpdateReplicationPeerConfigResponse {
+uint64 proc_id = 1;
+}
+
+message ListReplicationPeersRequest {
+string regex = 1;
+}
+
+message ListReplicationPeersResponse {
+  repeated ReplicationPeerDescription peer_desc = 1;
+}
+
+message TransitReplicationPeerSyncReplicationStateRequest {
+string peer_id = 1;
+SyncReplicationState syncReplicationState = 2;
+}
+
+message TransitReplicationPeerSyncReplicationStateResponse {
+uint64 proc_id = 1;
+}
+
+message GetReplicationPeerStateRequest {
+string peer_id = 1;
+}
+
+message GetReplicationPeerStateResponse {
+bool is_enabled = 1;
+}
+
+message ReplicationPeerModificationSwitchRequest {
+bool on = 1;
+}
+
+message ReplicationPeerModificationSwitchResponse {
+bool previous_value = 1;
+}
+
+message ReplicationPeerModificationState {
+bool on = 1;
+}
+
+message GetReplicationPeerModificationProceduresRequest {
+}
+
+message GetReplicationPeerModificationProceduresResponse {
+  repeated Procedure procedure = 1;
+}
+
+message IsReplicationPeerModificationEnabledRequest {
+}
+
+message IsReplicationPeerModificationEnabledResponse {
+bool enabled = 1;
+}

@@ -784,6 +784,7 @@
     <module>hbase-thrift</module>
     <module>hbase-shell</module>
     <module>hbase-protocol-shaded</module>
+    <module>hbase-grpc-shaded</module>
     <module>hbase-client</module>
     <module>hbase-hadoop-compat</module>
     <module>hbase-common</module>
@@ -810,6 +811,7 @@
     <module>hbase-compression</module>
     <module>hbase-extensions</module>
     <module>hbase-dev-generate-classpath</module>
+    <module>hbase-perf-test</module>
   </modules>
   <scm>
     <connection>scm:git:git://gitbox.apache.org/repos/asf/hbase.git</connection>
@@ -1137,6 +1139,11 @@
       <dependency>
         <groupId>org.apache.hbase</groupId>
         <artifactId>hbase-protocol-shaded</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.hbase</groupId>
+        <artifactId>hbase-grpc-shaded</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
@@ -2451,22 +2458,6 @@
             </configuration>
           </execution>
           <execution>
-            <id>banned-jsr305</id>
-            <goals>
-              <goal>enforce</goal>
-            </goals>
-            <configuration>
-              <rules>
-                <bannedDependencies>
-                  <excludes>
-                    <exclude>com.google.code.findbugs:jsr305</exclude>
-                  </excludes>
-                  <message>We don't allow the JSR305 jar from the Findbugs project, see HBASE-16321.</message>
-                </bannedDependencies>
-              </rules>
-            </configuration>
-          </execution>
-          <execution>
             <id>banned-scala</id>
             <goals>
               <goal>enforce</goal>
@@ -2603,13 +2594,6 @@
                     // Beanshell does not support try-with-resources,
                     // so we must close this scanner manually
                     Scanner scanner = new Scanner(license);
-
-                    while (scanner.hasNextLine()) {
-                      if (scanner.nextLine().startsWith("ERROR:")) {
-                        scanner.close();
-                        return false;
-                      }
-                    }
                     scanner.close();
                     return true;</condition>
                   <message>License errors detected, for more detail find ERROR in

@@ -1,0 +1,182 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+syntax = "proto3";
+
+// This file contains protocol buffers that are used for filters
+package hbase.grpc;
+
+option java_package = "org.apache.hadoop.hbase.shaded.grpc.generated";
+option java_outer_classname = "FilterProtos";
+option java_generic_services = true;
+option java_generate_equals_and_hash = true;
+option optimize_for = SPEED;
+
+import "HBase.proto";
+import "client/Comparator.proto";
+
+message Filter {
+  string name = 1;
+  bytes serialized_filter = 2;
+}
+
+message ColumnCountGetFilter {
+  int32 limit = 1;
+}
+
+message ColumnPaginationFilter {
+  int32 limit = 1;
+  int32 offset = 2;
+  bytes column_offset = 3;
+}
+
+message ColumnPrefixFilter {
+  bytes prefix = 1;
+}
+
+message ColumnRangeFilter {
+  bytes min_column = 1;
+  bool min_column_inclusive = 2;
+  bytes max_column = 3;
+  bool max_column_inclusive = 4;
+}
+
+message CompareFilter {
+  CompareType compare_op = 1;
+  Comparator comparator = 2;
+}
+
+message DependentColumnFilter {
+  CompareFilter compare_filter = 1;
+  bytes column_family = 2;
+  bytes column_qualifier = 3;
+  bool drop_dependent_column = 4;
+}
+
+message FamilyFilter {
+  CompareFilter compare_filter = 1;
+}
+
+message FilterList {
+  Operator operator = 1;
+  repeated Filter filters = 2;
+
+  enum Operator {
+    MUST_PASS_ALL = 0;
+    MUST_PASS_ONE = 1;
+  }
+}
+
+message FilterWrapper {
+  Filter filter = 1;
+}
+
+message FirstKeyOnlyFilter {
+}
+
+message FirstKeyValueMatchingQualifiersFilter {
+  //Just deprecate it to guarantee old client could communicate with server
+  option deprecated = true;
+  repeated bytes qualifiers = 1;
+}
+
+message FuzzyRowFilter {
+  repeated BytesBytesPair fuzzy_keys_data = 1;
+}
+
+message InclusiveStopFilter {
+  bytes stop_row_key = 1;
+}
+
+message KeyOnlyFilter {
+  bool len_as_val = 1;
+}
+
+message MultipleColumnPrefixFilter {
+  repeated bytes sorted_prefixes = 1;
+}
+
+message PageFilter {
+  int64 page_size = 1;
+}
+
+message PrefixFilter {
+  bytes prefix = 1;
+}
+
+message QualifierFilter {
+  CompareFilter compare_filter = 1;
+}
+
+message RandomRowFilter {
+  float chance = 1;
+}
+
+message RowFilter {
+  CompareFilter compare_filter = 1;
+}
+
+message SingleColumnValueExcludeFilter {
+  SingleColumnValueFilter single_column_value_filter = 1;
+}
+
+message SingleColumnValueFilter {
+  bytes column_family = 1;
+  bytes column_qualifier = 2;
+  CompareType compare_op = 3;
+  Comparator comparator = 4;
+  bool filter_if_missing = 5;
+  bool latest_version_only = 6;
+}
+
+message SkipFilter {
+  Filter filter = 1;
+}
+
+message TimestampsFilter {
+  repeated int64 timestamps = 1 [packed=true];
+  bool can_hint = 2;
+}
+
+message ValueFilter {
+  CompareFilter compare_filter = 1;
+}
+
+message WhileMatchFilter {
+  Filter filter = 1;
+}
+
+message FilterAllFilter {
+}
+
+message RowRange {
+  bytes start_row = 1;
+  bool start_row_inclusive = 2;
+  bytes stop_row = 3;
+  bool stop_row_inclusive = 4;
+}
+
+message MultiRowRangeFilter {
+  repeated RowRange row_range_list = 1;
+}
+
+message ColumnValueFilter {
+  bytes family = 1;
+  bytes qualifier = 2;
+  CompareType compare_op = 3;
+  Comparator comparator = 4;
+}

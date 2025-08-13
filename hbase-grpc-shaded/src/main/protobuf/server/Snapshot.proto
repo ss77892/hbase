@@ -1,0 +1,91 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+syntax = "proto3";
+package hbase.grpc;
+
+option java_package = "org.apache.hadoop.hbase.shaded.grpc.generated";
+option java_outer_classname = "SnapshotProtos";
+option java_multiple_files = true;
+option java_generic_services = true;
+option java_generate_equals_and_hash = true;
+option optimize_for = SPEED;
+
+import "HBase.proto";
+import "server/io/FS.proto";
+import "server/coprocessor/AccessControl.proto";
+
+/**
+ * Description of the snapshot to take
+ */
+message SnapshotDescription {
+  string name = 1;
+  string table = 2; // not needed for delete, but checked for in taking snapshot
+  int64 creation_time = 3;
+  
+  enum Type {
+    FLUSH = 0;  // First enum value must be zero
+    DISABLED = 1;
+    SKIPFLUSH = 2;
+  }
+  
+  Type type = 4;
+  int32 version = 5;
+  string owner = 6;
+  UsersAndPermissions users_and_permissions = 7;
+  int64 ttl = 8;
+  int64 max_file_size = 9;
+}
+
+message SnapshotFileInfo {
+  enum Type {
+    HFILE = 0;  // First enum value must be zero
+    WAL = 1;
+  }
+
+  Type type = 1;
+
+  string hfile = 3;
+
+  string wal_server = 4;
+  string wal_name = 5;
+}
+
+message SnapshotRegionManifest {
+  int32 version = 1;
+
+  RegionInfo region_info = 2;
+  repeated FamilyFiles family_files = 3;
+
+  message StoreFile {
+    string name = 1;
+    Reference reference = 2;
+
+    // TODO: Add checksums or other fields to verify the file
+    uint64 file_size = 3;
+  }
+
+  message FamilyFiles {
+    bytes family_name = 1;
+    repeated StoreFile store_files = 2;
+  }
+}
+
+message SnapshotDataManifest {
+  TableSchema table_schema = 1;
+  repeated SnapshotRegionManifest region_manifests = 2;
+}

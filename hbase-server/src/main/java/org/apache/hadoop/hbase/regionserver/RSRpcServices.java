@@ -2474,7 +2474,7 @@ public class RSRpcServices extends HBaseRpcServicesBase<HRegionServer>
       requestCount.increment();
       rpcGetRequestCount.increment();
       region = getRegion(request.getRegion());
-      rejectIfInStandByState(region);
+       rejectIfInStandByState(region);
 
       GetResponse.Builder builder = GetResponse.newBuilder();
       ClientProtos.Get get = request.getGet();

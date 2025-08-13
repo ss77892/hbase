@@ -1,0 +1,328 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <!--
+    /**
+     * Licensed to the Apache Software Foundation (ASF) under one
+     * or more contributor license agreements.  See the NOTICE file
+     * distributed with this work for additional information
+     * regarding copyright ownership.  The ASF licenses this file
+     * to you under the Apache License, Version 2.0 (the
+     * "License"); you may not use this file except in compliance
+     * with the License.  You may obtain a copy of the License at
+     *
+     *     http://www.apache.org/licenses/LICENSE-2.0
+     *
+     * Unless required by applicable law or agreed to in writing, software
+     * distributed under the License is distributed on an "AS IS" BASIS,
+     * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+     * See the License for the specific language governing permissions and
+     * limitations under the License.
+     */
+    -->
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>org.apache.hbase</groupId>
+    <artifactId>hbase-build-configuration</artifactId>
+    <version>${revision}</version>
+    <relativePath>../hbase-build-configuration</relativePath>
+  </parent>
+  <artifactId>hbase-grpc-shaded</artifactId>
+  <name>Apache HBase - GRPC Shaded Protocol</name>
+  <description>Shaded grpc protocol classes used by HBase internally.</description>
+  <properties>
+    <maven.javadoc.skip>true</maven.javadoc.skip>
+    <!-- Align protoc with protobuf-java 3.21.12 to avoid using 4.x-only APIs (e.g., IntListAdapter) -->
+    <internal.protobuf.version>3.21.12</internal.protobuf.version>
+  </properties>
+  <dependencies>
+    <!--BE CAREFUL! Any dependency added here needs to be
+          excluded above in the shade plugin else the dependency
+          will get bundled-->
+    <!-- Intra-project dependencies -->
+    <dependency>
+      <groupId>junit</groupId>
+      <artifactId>junit</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <!-- gRPC dependencies -->
+    <dependency>
+      <groupId>io.grpc</groupId>
+      <artifactId>grpc-netty-shaded</artifactId>
+      <version>1.56.0</version>
+    </dependency>
+    <dependency>
+      <groupId>io.grpc</groupId>
+      <artifactId>grpc-protobuf</artifactId>
+      <version>1.56.0</version>
+    </dependency>
+    <dependency>
+      <groupId>io.grpc</groupId>
+      <artifactId>grpc-stub</artifactId>
+      <version>1.56.0</version>
+    </dependency>
+<dependency>
+  <groupId>com.google.protobuf</groupId>
+  <artifactId>protobuf-java</artifactId>
+  <version>3.22.3</version> <!-- Must match protoc version -->
+</dependency>
+  </dependencies>
+  <build>
+    <plugins>
+      <plugin>
+        <!--Make it so assembly:single does nothing in here-->
+        <artifactId>maven-assembly-plugin</artifactId>
+        <configuration>
+          <skipAssembly>true</skipAssembly>
+        </configuration>
+      </plugin>
+      <plugin>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <!-- Always skip the second part executions, since we only run simple unit tests in this module -->
+        <executions>
+          <execution>
+            <id>secondPartTestsExecution</id>
+            <goals>
+              <goal>test</goal>
+            </goals>
+            <phase>test</phase>
+            <configuration>
+              <skip>true</skip>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.xolstice.maven.plugins</groupId>
+        <artifactId>protobuf-maven-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>compile-protoc</id>
+            <goals>
+              <goal>compile</goal>
+              <goal>compile-custom</goal>
+            </goals>
+            <configuration>
+              <protocArtifact>com.google.protobuf:protoc:${internal.protobuf.version}:exe:${os.detected.classifier}</protocArtifact>
+              <checkStaleness>true</checkStaleness>
+              <!-- Generate gRPC stubs using protoc plugin binary -->
+              <pluginId>grpc-java</pluginId>
+              <pluginArtifact>io.grpc:protoc-gen-grpc-java:1.56.0:exe:${os.detected.classifier}</pluginArtifact>
+              <!-- Specify proto source directory -->
+              <protoSources>
+                <protoSource>
+                  <directory>src/main/protobuf</directory>
+                  <includes>
+                    <include>**/*.proto</include>
+                  </includes>
+                </protoSource>
+              </protoSources>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <!--Need this old plugin to replace in generated files instances
+           of com.google.protobuf so instead its o.a.h.h.com.google.protobuf.
+           Plugin is old and in google code archive. Here is usage done by
+           anohther: https://github.com/beiliubei/maven-replacer-plugin/wiki/Usage-Guide
+           The mess with the regex in the below is to prevent replacement every time
+           we run mvn install. There is probably a better way of avoiding the
+           double interpolation but this is it for now.
+        -->
+      <!-- <plugin>
+        <groupId>com.google.code.maven-replacer-plugin</groupId>
+        <artifactId>replacer</artifactId>
+        <executions>
+          <execution>
+            <id>replace-in-grpc-generated-sources</id>
+            <phase>generate-sources</phase>
+            <goals>
+              <goal>replace</goal>
+            </goals>
+            <configuration>
+              <basedir>${project.build.directory}/generated-sources/protobuf/grpc-java</basedir>
+              <includes>
+                <include>**/*.java</include>
+              </includes>
+              <regex>true</regex>
+              <replacements>
+                <replacement>
+                  <token>\bcom\.google\.protobuf\b</token>
+                  <value>org.apache.hadoop.hbase.shaded.com.google.protobuf</value>
+                </replacement>
+                <replacement>
+                  <token>^@javax\.annotation\.Generated\(.*\)\s*</token>
+                  <value></value>
+                </replacement>
+              </replacements>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
+        <version>3.4.1</version>
+        <executions>
+          <execution>
+            <goals>
+              <goal>shade</goal>
+            </goals>
+            <phase>package</phase>
+            <configuration>
+              <minimizeJar>true</minimizeJar>
+              <shadeSourcesContent>true</shadeSourcesContent>
+              <createSourcesJar>true</createSourcesJar>
+              <relocations>
+                <relocation>
+                  <pattern>com.google.protobuf</pattern>
+                  <shadedPattern>org.apache.hadoop.hbase.shaded.com.google.protobuf</shadedPattern>
+                </relocation>
+              </relocations>
+              <artifactSet>
+                <excludes>
+                  <exclude>javax.annotation:javax.annotation-api</exclude>
+                  <exclude>org.apache.hbase.thirdparty:*</exclude>
+                  <exclude>com.google.protobuf:protobuf-java</exclude>
+                  <exclude>com.google.j2objc:j2objc-annotations</exclude>
+                  <exclude>org.codehaus.mojo:animal-sniffer-annotations</exclude>
+                  <exclude>junit:junit</exclude>
+                  <exclude>log4j:log4j</exclude>
+                  <exclude>commons-logging:commons-logging</exclude>
+                  <exclude>org.slf4j:slf4j-api</exclude>
+                  <exclude>org.apache.yetus:audience-annotations</exclude>
+                </excludes>
+              </artifactSet>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>  -->
+      <!-- Ensure grpc-java generated sources are compiled -->
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>build-helper-maven-plugin</artifactId>
+        <version>3.2.0</version>
+        <executions>
+          <execution>
+            <id>add-grpc-java-sources</id>
+            <phase>generate-sources</phase>
+            <goals>
+              <goal>add-source</goal>
+            </goals>
+            <configuration>
+              <sources>
+                <source>${project.build.directory}/generated-sources/protobuf/grpc-java</source>
+              </sources>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-checkstyle-plugin</artifactId>
+        <configuration>
+          <failOnViolation>true</failOnViolation>
+        </configuration>
+      </plugin>
+      <!-- Add build helper plugin to include generated sources -->
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>build-helper-maven-plugin</artifactId>
+        <version>3.2.0</version>
+        <executions>
+          <execution>
+            <id>add-source</id>
+            <phase>generate-sources</phase>
+            <goals>
+              <goal>add-source</goal>
+            </goals>
+            <configuration>
+              <sources>
+                <source>${project.build.directory}/generated-sources/proto</source>
+              </sources>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+  <profiles>
+    <!-- Skip the tests in this module -->
+    <profile>
+      <id>skip-protocol-shaded-tests</id>
+      <activation>
+        <property>
+          <name>skip-protocol-shaded-tests</name>
+        </property>
+      </activation>
+      <properties>
+        <surefire.skipFirstPart>true</surefire.skipFirstPart>
+        <surefire.skipSecondPart>true</surefire.skipSecondPart>
+      </properties>
+    </profile>
+    <profile>
+      <id>build-with-jdk11</id>
+      <activation>
+        <jdk>[1.11,)</jdk>
+      </activation>
+      <dependencies>
+        <dependency>
+          <groupId>javax.annotation</groupId>
+          <artifactId>javax.annotation-api</artifactId>
+        </dependency>
+      </dependencies>
+    </profile>
+    <profile>
+      <id>eclipse-specific</id>
+      <activation>
+        <property>
+          <name>m2e.version</name>
+        </property>
+      </activation>
+      <build>
+        <pluginManagement>
+          <plugins>
+            <!--This plugin's configuration is used to store Eclipse m2e settings only. It has no influence on the Maven build itself.-->
+            <plugin>
+              <groupId>org.eclipse.m2e</groupId>
+              <artifactId>lifecycle-mapping</artifactId>
+              <configuration>
+                <lifecycleMappingMetadata>
+                  <pluginExecutions>
+                    <pluginExecution>
+                      <pluginExecutionFilter>
+                        <groupId>org.apache.hadoop</groupId>
+                        <artifactId>hadoop-maven-plugins</artifactId>
+                        <versionRange>[2.0.5-alpha,)</versionRange>
+                        <goals>
+                          <goal>protoc</goal>
+                        </goals>
+                      </pluginExecutionFilter>
+                      <action>
+                        <ignore/>
+                      </action>
+                    </pluginExecution>
+                    <pluginExecution>
+                      <pluginExecutionFilter>
+                        <groupId>com.google.code.maven-replacer-plugin</groupId>
+                        <artifactId>replacer</artifactId>
+                        <versionRange>[1.5.3,)</versionRange>
+                        <goals>
+                          <goal>replace</goal>
+                        </goals>
+                      </pluginExecutionFilter>
+                      <action>
+                        <execute>
+                          <runOnIncremental>false</runOnIncremental>
+                        </execute>
+                      </action>
+                    </pluginExecution>
+                  </pluginExecutions>
+                </lifecycleMappingMetadata>
+              </configuration>
+            </plugin>
+          </plugins>
+        </pluginManagement>
+      </build>
+    </profile>
+  </profiles>
+</project>

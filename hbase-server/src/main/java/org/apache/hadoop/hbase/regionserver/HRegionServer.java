@@ -615,6 +615,9 @@ public class HRegionServer extends HBaseServerBase<RSRpcServices>
     return new RSRpcServices(this);
   }
 
+  // gRPC service for regionserver, started alongside RPC server
+  private transient org.apache.hadoop.hbase.regionserver.grpc.RegionServerGrpcService regionServerGrpcService;
+
   @Override
   protected void configureInfoServer(InfoServer infoServer) {
     infoServer.addUnprivilegedServlet("rs-status", "/rs-status", RSStatusServlet.class);
@@ -1878,6 +1881,17 @@ public class HRegionServer extends HBaseServerBase<RSRpcServices>
     this.walRoller = new LogRoller(this);
     this.flushThroughputController = FlushThroughputControllerFactory.create(this, conf);
     this.procedureResultReporter = new RemoteProcedureResultReporter(this);
+    // Start gRPC server (optional, controlled by config)
+    try {
+      if (regionServerGrpcService == null) {
+        regionServerGrpcService =
+          new org.apache.hadoop.hbase.regionserver.grpc.RegionServerGrpcService(this, this.rpcServices);
+      }
+      regionServerGrpcService.start();
+    } catch (IOException ioe) {
+      LOG.error("Failed to start RegionServer gRPC server", ioe);
+      // Do not fail RS startup; continue with classic RPC server
+    }
 
     // Create the CompactedFileDischarger chore executorService. This chore helps to
     // remove the compacted files that will no longer be used in reads.
@@ -2216,6 +2230,13 @@ public class HRegionServer extends HBaseServerBase<RSRpcServices>
       LOG.info("STOPPED: " + msg);
       // Wakes run() if it is sleeping
       sleeper.skipSleepCycle();
+      // Stop gRPC server if started
+      if (this.regionServerGrpcService != null) {
+        try {
+          this.regionServerGrpcService.stop();
+        } catch (Exception ignored) {
+        }
+      }
     }
   }
 

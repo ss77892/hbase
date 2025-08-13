@@ -108,6 +108,9 @@ public class AsyncConnectionImpl implements AsyncConnection {
   private final ConcurrentMap<String, AdminService.Interface> adminStubs =
     new ConcurrentHashMap<>();
 
+  // gRPC client service for alternative communication path
+  private final org.apache.hadoop.hbase.client.grpc.GrpcClientServiceInterface grpcClientService;
+
   private final AtomicReference<MasterService.Interface> masterStub = new AtomicReference<>();
 
   private final AtomicReference<CompletableFuture<MasterService.Interface>> masterStubMakeFuture =
@@ -163,6 +166,7 @@ public class AsyncConnectionImpl implements AsyncConnection {
     }
     this.stats = Optional.ofNullable(ServerStatisticTracker.create(conf));
     this.backoffPolicy = ClientBackoffPolicyFactory.create(conf);
+    this.grpcClientService = org.apache.hadoop.hbase.client.grpc.GrpcClientServiceFactory.create(conf);
     ClusterStatusListener listener = null;
     if (conf.getBoolean(STATUS_PUBLISHED, STATUS_PUBLISHED_DEFAULT)) {
       // TODO: this maybe a blocking operation, better to create it outside the constructor and pass
@@ -237,6 +241,13 @@ public class AsyncConnectionImpl implements AsyncConnection {
       IOUtils.closeQuietly(clusterStatusListener,
         e -> LOG.warn("failed to close clusterStatusListener", e));
       IOUtils.closeQuietly(rpcClient, e -> LOG.warn("failed to close rpcClient", e));
+      try {
+        if (grpcClientService != null) {
+          grpcClientService.close();
+        }
+      } catch (Exception e) {
+        LOG.warn("failed to close grpcClientService", e);
+      }
       IOUtils.closeQuietly(registry, e -> LOG.warn("failed to close registry", e));
       synchronized (this) {
         if (choreService != null) {
@@ -292,6 +303,13 @@ public class AsyncConnectionImpl implements AsyncConnection {
     return ConcurrentMapUtils.computeIfAbsentEx(rsStubs,
       getStubKey(ClientService.getDescriptor().getName(), serverName),
       () -> createRegionServerStub(serverName));
+  }
+
+  /**
+   * Get the gRPC client service for alternative communication.
+   */
+  public org.apache.hadoop.hbase.client.grpc.GrpcClientServiceInterface getGrpcClientService() {
+    return grpcClientService;
   }
 
   private MasterService.Interface createMasterStub(ServerName serverName) throws IOException {

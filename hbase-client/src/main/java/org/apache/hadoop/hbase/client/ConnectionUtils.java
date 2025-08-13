@@ -600,17 +600,17 @@ public final class ConnectionUtils {
   }
 
   @FunctionalInterface
-  interface Converter<D, I, S> {
+  public interface Converter<D, I, S> {
     D convert(I info, S src) throws IOException;
   }
 
   @FunctionalInterface
-  interface RpcCall<RESP, REQ> {
+  public interface RpcCall<RESP, REQ> {
     void call(ClientService.Interface stub, HBaseRpcController controller, REQ req,
       RpcCallback<RESP> done);
   }
 
-  static <REQ, PREQ, PRESP, RESP> CompletableFuture<RESP> call(HBaseRpcController controller,
+  public static <REQ, PREQ, PRESP, RESP> CompletableFuture<RESP> call(HBaseRpcController controller,
     HRegionLocation loc, ClientService.Interface stub, REQ req,
     Converter<PREQ, byte[], REQ> reqConvert, RpcCall<PRESP, PREQ> rpcCall,
     Converter<RESP, HBaseRpcController, PRESP> respConverter) {

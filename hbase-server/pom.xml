@@ -169,6 +169,27 @@
       <groupId>org.apache.hbase</groupId>
       <artifactId>hbase-asyncfs</artifactId>
     </dependency>
+    <!-- gRPC shaded protocol and runtime for the parallel gRPC server -->
+    <dependency>
+      <groupId>org.apache.hbase</groupId>
+      <artifactId>hbase-grpc-shaded</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>io.grpc</groupId>
+      <artifactId>grpc-netty</artifactId>
+      <version>1.56.0</version>
+    </dependency>
+    <dependency>
+      <groupId>io.grpc</groupId>
+      <artifactId>grpc-protobuf</artifactId>
+      <version>1.56.0</version>
+    </dependency>
+    <dependency>
+      <groupId>io.grpc</groupId>
+      <artifactId>grpc-stub</artifactId>
+      <version>1.56.0</version>
+    </dependency>
     <dependency>
       <groupId>org.apache.hbase</groupId>
       <artifactId>hbase-asyncfs</artifactId>

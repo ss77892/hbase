@@ -1,0 +1,67 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+syntax = "proto3";
+
+// This file contains protocol buffers that are used for Online TooSlowLogs
+// To be used as Ring Buffer payload
+package hbase.grpc;
+
+option java_package = "org.apache.hadoop.hbase.shaded.grpc.generated";
+option java_outer_classname = "TooSlowLog";
+option java_generate_equals_and_hash = true;
+option optimize_for = SPEED;
+
+import "HBase.proto";
+import "client/Client.proto";
+
+message SlowLogPayload {
+int64 start_time = 1;
+int32 processing_time = 2;
+int32 queue_time = 3;
+int64 response_size = 4;
+string client_address = 5;
+string server_class = 6;
+string method_name = 7;
+string call_details = 8;
+string param = 9;
+string user_name = 10;
+string region_name = 11;
+int32 multi_gets = 12;
+int32 multi_mutations = 13;
+int32 multi_service_calls = 14;
+Type type = 15;
+
+int64 block_bytes_scanned = 16;
+Scan scan = 17;
+
+  repeated NameBytesPair connection_attribute = 18;
+  repeated NameBytesPair request_attribute = 19;
+
+int64 fs_read_time = 20;
+
+  // SLOW_LOG is RPC call slow in nature whereas LARGE_LOG is RPC call quite large.
+  // Majority of times, slow logs are also large logs and hence, ALL is combination of
+  // both
+  enum Type {
+    SLOW_LOG = 0;
+    LARGE_LOG = 1;
+    ALL = 2;
+  }
+
+}

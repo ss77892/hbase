@@ -53,7 +53,7 @@
     </tr>
     <% for (TableDescriptor htDesc : tables) { %>
     <tr>
-      <td>
+      <td class="text-nowrap">
         <a href="/table.jsp?name=<%= escapeXml(htDesc.getTableName().getNameAsString()) %>"><%= escapeXml(
             htDesc.getTableName().getNameAsString()) %>
         </a></td>

@@ -1,0 +1,193 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+syntax = "proto3";
+package hbase.grpc;
+
+option java_package = "org.apache.hadoop.hbase.shaded.grpc.generated";
+option java_outer_classname = "WALProtos";
+option java_generic_services = false;
+option java_generate_equals_and_hash = true;
+option optimize_for = SPEED;
+
+import "HBase.proto";
+
+message WALHeader {
+bool has_compression = 1;
+bytes encryption_key = 2;
+bool has_tag_compression = 3;
+string writer_cls_name = 4;
+string cell_codec_cls_name = 5;
+bool has_value_compression = 6;
+uint32 value_compression_algorithm = 7;
+}
+
+/*
+ * Protocol buffer version of WALKey; see WALKey comment, not really a key but WALEdit header
+ * for some KVs
+ */
+message WALKey {
+bytes encoded_region_name = 1;
+bytes table_name = 2;
+uint64 log_sequence_number = 3;
+uint64 write_time = 4;
+  /*
+  This parameter is deprecated in favor of clusters which
+  contains the list of clusters that have consumed the change.
+  It is retained so that the log created by earlier releases (0.94)
+  can be read by the newer releases.
+  */
+UUID cluster_id = 5 [deprecated=true];
+
+  repeated FamilyScope scopes = 6;
+uint32 following_kv_count = 7;
+
+  /*
+  This field contains the list of clusters that have
+  consumed the change
+  */
+  repeated UUID cluster_ids = 8;
+
+uint64 nonceGroup = 9;
+uint64 nonce = 10;
+uint64 orig_sequence_number = 11;
+  repeated Attribute extended_attributes = 12;
+
+  /*
+CustomEntryType custom_entry_type = 9;
+
+    enum CustomEntryType {
+      COMPACTION = 0;
+    }
+  */
+}
+
+message Attribute {
+string key = 1;
+bytes value = 2;
+}
+
+enum ScopeType {
+  REPLICATION_SCOPE_LOCAL = 0;
+  REPLICATION_SCOPE_GLOBAL = 1;
+  REPLICATION_SCOPE_SERIAL = 2;
+}
+
+message FamilyScope {
+bytes family = 1;
+ScopeType scope_type = 2;
+}
+
+/**
+ * Custom WAL entries
+ */
+
+/**
+ * Special WAL entry to hold all related to a compaction.
+ * Written to WAL before completing compaction.  There is
+ * sufficient info in the below message to complete later
+ * the * compaction should we fail the WAL write.
+ */
+message CompactionDescriptor {
+bytes table_name = 1; // TODO: WALKey already stores these, might remove
+bytes encoded_region_name = 2;
+bytes family_name = 3;
+  repeated string compaction_input = 4; // relative to store dir
+  repeated string compaction_output = 5;
+string store_home_dir = 6; // relative to region dir
+bytes  region_name = 7; // full region name
+}
+
+/**
+ * Special WAL entry to hold all related to a flush.
+ */
+message FlushDescriptor {
+  enum FlushAction {
+    START_FLUSH = 0;
+    COMMIT_FLUSH = 1;
+    ABORT_FLUSH = 2;
+    CANNOT_FLUSH = 3; // marker for indicating that a flush has been requested but cannot complete
+  }
+
+  message StoreFlushDescriptor {
+bytes family_name = 1;
+string store_home_dir = 2; //relative to region dir
+    repeated string flush_output = 3; // relative to store dir (if this is a COMMIT_FLUSH)
+  }
+
+FlushAction action = 1;
+bytes table_name = 2;
+bytes encoded_region_name = 3;
+uint64 flush_sequence_number = 4;
+  repeated StoreFlushDescriptor store_flushes = 5;
+bytes  region_name = 6; // full region name
+}
+
+message StoreDescriptor {
+bytes family_name = 1;
+string store_home_dir = 2; //relative to region dir
+  repeated string store_file = 3; // relative to store dir
+uint64 store_file_size_bytes = 4; // size of store file
+}
+
+/**
+ * Special WAL entry used for writing bulk load events to WAL
+ */
+message BulkLoadDescriptor {
+  TableName table_name = 1;
+  bytes encoded_region_name = 2;
+  repeated StoreDescriptor stores = 3;
+  int64 bulkload_seq_num = 4;
+  repeated string cluster_ids = 5;
+  bool replicate = 6;
+}
+
+/**
+ * Special WAL entry to hold all related to a region event (open/close).
+ */
+message RegionEventDescriptor {
+  enum EventType {
+    REGION_OPEN = 0;
+    REGION_CLOSE = 1;
+  }
+
+EventType event_type = 1;
+bytes table_name = 2;
+bytes encoded_region_name = 3;
+uint64 log_sequence_number = 4;
+  repeated StoreDescriptor stores = 5;
+ServerName server = 6;  // Server who opened the region
+bytes  region_name = 7; // full region name
+}
+
+/**
+ * A trailer that is appended to the end of a properly closed WAL file.
+ * If missing, this is either a legacy or a corrupted WAL file.
+ * N.B. This trailer currently doesn't contain any information and we
+ * purposefully don't expose it in the WAL APIs. It's for future growth.
+ */
+message WALTrailer {
+}
+
+/**
+ * Special WAL entry for replication marker event.
+ */
+message ReplicationMarkerDescriptor {
+string region_server_name = 1;
+string wal_name = 2;
+uint64 offset = 3;
+}
